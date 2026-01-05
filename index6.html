@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>똥 탈출 대작전 - 무한 레벨업</title>
+    <style>
+        body { margin: 0; padding: 0; background: #5d4037; overflow: hidden; font-family: sans-serif; touch-action: none; }
+        #game-box { position: relative; width: 100vw; height: 100vh; max-width: 500px; margin: 0 auto; background: #808080; }
+        .screen { position: absolute; inset: 0; z-index: 999; background: #5d4037; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; }
+        .btn { width: 220px; padding: 20px; background: #8d6e63; border: 5px solid #3e2723; font-size: 24px; font-weight: bold; cursor: pointer; border-radius: 20px; margin: 10px; box-shadow: 0 5px 0 #3e2723; }
+        .btn:active { background: #3e2723; transform: translateY(3px); box-shadow: 0 2px 0 #3e2723; }
+        canvas { display: none; width: 100%; height: 100%; background: #444; }
+        #ui { position: absolute; top: 10px; width: 100%; display: none; justify-content: space-around; color: white; font-weight: bold; z-index: 100; pointer-events: none; text-shadow: 2px 2px black; }
+        #msg { position: absolute; top: 40%; width: 100%; text-align: center; color: #ffeb3b; font-size: 45px; font-weight: bold; display: none; z-index: 500; text-shadow: 3px 3px 5px black; }
+    </style>
+</head>
+<body>
+
+<div id="game-box">
+    <div id="ui">
+        <span>LV: <b id="lvl">1</b></span>
+        <span>TIME: <b id="tmr">30</b></span>
+        <span>STAR: <b id="star">0</b></span>
+    </div>
+    <div id="home" class="screen">
+        <div style="font-size: 80px; margin-bottom: 10px;">💩</div>
+        <h1 style="margin:0 0 20px 0;">하수도 탈출</h1>
+        <div class="btn" onclick="gameStart(1)">탈출 시작!</div>
+        <p>누적 별: <span id="total">0</span></p>
+    </div>
+    <div id="msg">LEVEL UP!</div>
+    <canvas id="cvs"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('cvs');
+    const ctx = canvas.getContext('2d');
+    let gameActive = false, score = 0, timeLeft = 30, currentLevel = 1;
+    let totalStars = parseInt(localStorage.getItem('stars')) || 0;
+    let player = { x: 0, y: 150, size: 40 }, objects = [], move = 0, timerId = null;
+
+    window.onload = () => {
+        canvas.width = document.getElementById('game-box').clientWidth;
+        canvas.height = document.getElementById('game-box').clientHeight;
+        document.getElementById('total').innerText = totalStars;
+    };
+
+    function gameStart(lvl) {
+        document.getElementById('home').style.display = 'none';
+        document.getElementById('ui').style.display = 'flex';
+        canvas.style.display = 'block';
+        currentLevel = lvl; score = 0; timeLeft = 30; objects = [];
+        player.x = canvas.width / 2 - 20;
+        gameActive = true;
+        updateDisplay(); startTimer(); loop();
+    }
+
+    function startTimer() {
+        if(timerId) clearInterval(timerId);
+        timerId = setInterval(() => {
+            if(!gameActive) return;
+            timeLeft--;
+            document.getElementById('tmr').innerText = timeLeft;
+            if(timeLeft <= 0) levelClear();
+        }, 1000);
+    }
+
+    function updateDisplay() {
+        document.getElementById('lvl').innerText = currentLevel;
+        document.getElementById('star').innerText = score;
+        document.getElementById('tmr').innerText = timeLeft;
+        document.getElementById('total').innerText = totalStars;
+    }
+
+    function levelClear() {
+        gameActive = false;
+        const msg = document.getElementById('msg');
+        msg.style.display = 'block';
+        msg.innerText = "LV " + currentLevel + " 통과!";
+        setTimeout(() => {
+            msg.style.display = 'none';
+            gameStart(currentLevel + 1);
+        }, 2000);
+    }
+
+    window.onkeydown = e => { if(e.key==='ArrowLeft') move=-1; if(e.key==='ArrowRight') move=1; };
+    window.onkeyup = () => move = 0;
+    canvas.ontouchstart = e => { move = e.touches[0].clientX < window.innerWidth/2 ? -1 : 1; };
+    canvas.ontouchend = () => move = 0;
+
+    function loop() {
+        if(!gameActive) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        player.x += move * 8;
+        if(player.x < 0) player.x = 0;
+        if(player.x > canvas.width - 40) player.x = canvas.width - 40;
+
+        // 난이도 미세 조절: 레벨당 속도 0.5씩, 생성률 0.005씩 증가
+        let chance = 0.03 + (currentLevel * 0.005);
+        let speed = 4 + (currentLevel * 0.5);
+
+        if(Math.random() < chance) objects.push({ x: Math.random()*(canvas.width-30), y: canvas.height, type: 'obs' });
+        if(Math.random() < 0.01) objects.push({ x: Math.random()*(canvas.width-30), y: canvas.height, type: 'star' });
+
+        ctx.font = "40px Arial";
+        ctx.fillText("💩", player.x, player.y);
+
+        for(let i = objects.length - 1; i >= 0; i--) {
+            let o = objects[i];
+            o.y -= speed;
+            if(o.type === 'obs') {
+                ctx.fillStyle = "red"; ctx.beginPath();
+                ctx.moveTo(o.x, o.y); ctx.lineTo(o.x+15, o.y-30); ctx.lineTo(o.x+30, o.y); ctx.fill();
+            } else { ctx.fillText("⭐", o.x, o.y); }
+
+            if(Math.abs(player.x - o.x) < 30 && Math.abs(player.y - o.y) < 30) {
+                if(o.type === 'obs') {
+                    gameActive = false;
+                    if(confirm("실패! 별 5개로 계속할까요? (레벨 " + currentLevel + ")")) {
+                        if(totalStars >= 5) { totalStars -= 5; localStorage.setItem('stars', totalStars); gameStart(currentLevel); }
+                        else { alert("별 부족!"); location.reload(); }
+                    } else { location.reload(); }
+                } else {
+                    score++; totalStars++;
+                    localStorage.setItem('stars', totalStars);
+                    updateDisplay(); objects.splice(i, 1);
+                }
+            }
+            if(o.y < -50) objects.splice(i, 1);
+        }
+        requestAnimationFrame(loop);
+    }
+</script>
+</body>
+</html>
