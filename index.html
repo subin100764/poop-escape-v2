@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>똥 하수도 탈출</title>
+    <style>
+        /* 기본 스타일 */
+        body { margin: 0; padding: 0; overflow: hidden; background: #5d4037; font-family: sans-serif; touch-action: none; }
+        #wrapper { position: relative; width: 100vw; height: 100vh; max-width: 500px; margin: 0 auto; background: #808080; }
+        canvas { display: block; width: 100%; height: 100%; background: #444; }
+
+        /* 화면 레이어 공통 */
+        .layer { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; text-align: center; }
+        
+        /* 홈 화면 */
+        #home-screen { background: #5d4037; }
+        .pixel-poop { font-size: 80px; margin-bottom: 20px; }
+        
+        /* 버튼 스타일 */
+        .btn { padding: 15px 40px; font-size: 20px; font-weight: bold; color: white; background: #8d6e63; border: 4px solid #3e2723; border-radius: 10px; cursor: pointer; margin-top: 20px; }
+        .btn:active { background: #3e2723; }
+
+        /* UI (상단 정보) */
+        #ui { position: absolute; top: 10px; left: 0; width: 100%; display: flex; justify-content: space-around; font-size: 20px; font-weight: bold; color: white; text-shadow: 2px 2px black; z-index: 50; pointer-events: none; }
+
+        /* 결과 화면 */
+        #game-over { background: rgba(0,0,0,0.85); display: none; z-index: 200; }
+        #win-screen { background: #2196f3; display: none; z-index: 300; }
+        .swirl { font-size: 80px; animation: rotate 1s infinite linear; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="wrapper">
+    <div id="ui">
+        <div>시간: <span id="timer">30</span></div>
+        <div>별: <span id="star-count">0</span></div>
+    </div>
+
+    <div id="home-screen" class="layer">
+        <div class="pixel-poop">💩</div>
+        <h1 style="margin:0;">하수도 탈출</h1>
+        <p>누적 별: <span id="total-stars-display">0</span></p>
+        <div class="btn" onclick="gameStart()">탈출 시작!</div>
+    </div>
+
+    <div id="game-over" class="layer">
+        <h2>탈출 실패...</h2>
+        <div class="btn" onclick="gameContinue()">계속 (별 5개 소모)</div>
+        <div class="btn" onclick="location.reload()" style="background:#555;">홈으로</div>
+    </div>
+
+    <div id="win-screen" class="layer">
+        <div class="swirl">💩</div>
+        <h2>바다 탈출 성공!</h2>
+        <p>변기 물 내려가는 중...</p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 게임 상태 변수
+    let gameActive = false;
+    let score = 0;
+    let timeLeft = 30;
+    let totalStars = parseInt(localStorage.getItem('poop_stars_save')) || 0;
+    
+    let player = { x: 0, y: 120, size: 40 };
+    let items = []; // 장애물과 별 통합 관리
+
+    // 화면 크기 설정
+    function resize() {
+        canvas.width = document.getElementById('wrapper').clientWidth;
+        canvas.height = document.getElementById('wrapper').clientHeight;
+        player.x = canvas.width / 2 - 20;
+    }
+    window.addEventListener('load', () => {
+        resize();
+        document.getElementById('total-stars-display').innerText = totalStars;
+    });
+
+    // 입력 제어 (키보드 + 터치)
+    let moveDir = 0;
+    window.addEventListener('keydown', e => {
+        if(e.code === 'ArrowLeft') moveDir = -1;
+        if(e.code === 'ArrowRight') moveDir = 1;
+    });
+    window.addEventListener('keyup', () => moveDir = 0);
+
+    // 터치 제어 (모바일용)
+    canvas.addEventListener('touchstart', e => {
+        const touchX = e.touches[0].clientX;
+        moveDir = touchX < window.innerWidth / 2 ? -1 : 1;
+    });
+    canvas.addEventListener('touchend', () => moveDir = 0);
+
+    function gameStart() {
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('game-over').style.display = 'none';
+        resetData();
+        gameActive = true;
+        requestAnimationFrame(gameLoop);
